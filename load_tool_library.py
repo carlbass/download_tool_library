@@ -49,13 +49,23 @@ def run(context):
         
         tool_library_name = tool_library_names[int(choice) - 1] + '.json'
 
-        #base_url = "https://raw.githubusercontent.com/carlbass/thermwood/main/thermwood90.json"
-        base_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/Thermwood Model 90.json"
-        download_url = base_url #+ tool_library_name
+        base_url = "https://raw.githubusercontent.com/carlbass/thermwood/main/"
+        download_url = base_url + tool_library_name
+        download_url = "https://raw.githubusercontent.com/carlbass/thermwood/main/thermwood90.json"
+        download_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/z.json"
+        download_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/HAAS12345.json"
+        download_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/Haas VM3.json"
 
         text_palette.writeText (f'Requesting: {download_url}')
 
         request = adsk.core.HttpRequest.create(download_url, adsk.core.HttpMethods.GetMethod)
+        if request.hasHeader:
+            (status, hnames, hvalues) = request.headers()
+            for h in hnames:
+                text_palette.writeText (f'{h}')            
+            for h in hvalues:
+                text_palette.writeText (f'{h}')
+
         response = request.executeSync()
         
         if response.statusCode == 200:
