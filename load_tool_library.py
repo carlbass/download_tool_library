@@ -1,4 +1,6 @@
 import adsk.core, adsk.fusion, adsk.cam, traceback
+import os
+
 import json
 global text_palette 
 global ui
@@ -48,13 +50,12 @@ def run(context):
         tool_library_url = tool_libraries.urlByLocation(adsk.cam.LibraryLocations.LocalLibraryLocation)
         
         tool_library_name = tool_library_names[int(choice) - 1] + '.json'
+        tool_library_name_no_extension = tool_library_names [int(choice) - 1]
 
-        base_url = "https://raw.githubusercontent.com/carlbass/thermwood/main/"
-        download_url = base_url + tool_library_name
-        download_url = "https://raw.githubusercontent.com/carlbass/thermwood/main/thermwood90.json"
-        download_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/z.json"
-        download_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/HAAS12345.json"
-        download_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/Haas VM3.json"
+        base_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/"
+        base_url = base_url + tool_library_name
+        
+        download_url = base_url.replace (' ', '%20')
 
         text_palette.writeText (f'Requesting: {download_url}')
 
@@ -69,19 +70,31 @@ def run(context):
         response = request.executeSync()
         
         if response.statusCode == 200:
-            tool_library = adsk.cam.DocumentToolLibrary.createFromJson(response.data)
-            text_palette.writeText (f'# tools: {tool_library.count}')
+
+            text_palette.writeText (f'About to create {tool_library_name}')
+            local_libraries = tool_libraries.childAssetURLs(tool_library_url)
+
+            for ll in local_libraries:
+                basename = os.path.basename(ll.toString())
+
+                text_palette.writeText (f'comparing {basename} => {tool_library_name_no_extension}')
+
+                # delete library if same one exists before making a new one
+                if basename == tool_library_name_no_extension:
+                    status = tool_libraries.deleteAsset(ll)
+                    text_palette.writeText (f'deleting {basename} => {status}')
+
+
+            tool_library = adsk.cam.ToolLibrary.createFromJson(response.data)
             tool_libraries.importToolLibrary (tool_library, tool_library_url, tool_library_name)
+
+            text_palette.writeText (f'created {tool_library_name} with {tool_library.count} tools')
+
         else:
             text_palette.writeText (f'ERROR: {response.statusCode}')
 
-        # delete library if same one exists before making a new one
-        # returnValue = toolLibraries_var.deleteAsset(url)
         
-        local_libraries = tool_libraries.childAssetURLs(tool_library_url)
 
-        for ll in local_libraries:
-            text_palette.writeText (ll.toString())
 
     
 
