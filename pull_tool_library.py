@@ -26,13 +26,12 @@ def run(context):
         text_palette = ui.palettes.itemById('TextCommands')
 
         # Create a button command definition.
-        library_button = command_definitions.addButtonDefinition('pull_tool_library', 'Pull tool library', tooltip, './resources')
+        library_button = command_definitions.addButtonDefinition('pull_tool_library', 'Pull tool library', tooltip, 'resources')
         
         # Connect to the command created event.
         library_command_created = command_created()
         library_button.commandCreated.add (library_command_created)
         handlers.append(library_command_created)
-
 
         # add the Moose Tools to the CAM workspace Utilities tab
                 
@@ -50,7 +49,7 @@ def run(context):
 
         if moose_cam_panel:
             # Add the command to the panel.
-            control = moose_cam_panel.controls.addCommand(library_button)
+            control = moose_cam_panel.controls.addCommand (library_button)
             control.isPromoted = False
             control.isPromotedByDefault = False
             debug_print ('Moose CAM Tools installed')
@@ -80,9 +79,20 @@ class command_created (adsk.core.CommandCreatedEventHandler):
         library_selection_input = inputs.addDropDownCommandInput('tool_library_select', 'Select tool library', adsk.core.DropDownStyles.CheckBoxDropDownStyle)
         library_selection_input.maxVisibleItems = 10
         list = library_selection_input.listItems
-        list.add ('Haas VM3', False, '')
-        list.add ('Thermwood Model 90', False, '')
-        list.add ('Hass ST30SSY', False, '')
+
+        repo_url = "https://api.github.com/repos/carlbass/fusion_tool_libraries/contents"
+
+        request = adsk.core.HttpRequest.create(repo_url, adsk.core.HttpMethods.GetMethod)
+        request.setHeader ('accept', 'application/vnd.github+json')
+        response = request.executeSync()
+
+        # if we got a good response put up a UI to chhose which tool library to download from git
+        if response.statusCode == 200:
+            #text_palette.writeText (f'data: {response.data}')
+            tool_library_names = parse_github_json (response.data)
+
+        for name in tool_library_names:
+            list.add (name, False, '')
         
         # create debug checkbox widget
         inputs.addBoolValueInput('debug', 'Debug', True, '', debug)
@@ -106,11 +116,29 @@ class command_executed (adsk.core.CommandEventHandler):
                     libraries_selected = input.listItems
                     for l in libraries_selected:
                         if l.isSelected:
-                            text_palette.writeText (f'{l.name}')
+                            text_palette.writeText (f'<{l.name}>')
                 elif (input.id == 'debug'):
                     debug = input.value           
                 else: 
                     debug_print (f'OOOPS --- too much input')
+
+            # download the chosen tool libraries from the git repository
+            library_manager = adsk.cam.CAMManager.get().libraryManager
+
+            tool_libraries = library_manager.toolLibraries
+            tool_library_url = tool_libraries.urlByLocation(adsk.cam.LibraryLocations.LocalLibraryLocation)
+
+
+            for lib in libraries_selected:
+                if lib.isSelected: 
+                    base_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/"
+
+                    tool_library_name = lib.name + '.json'
+                    base_url = base_url + tool_library_name
+                    download_url = base_url.replace (' ', '%20')
+
+                    debug_print (f'Requesting: {download_url} {lib.isSelected}')
+                
 
         except:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))	
@@ -121,6 +149,37 @@ def debug_print (msg):
         text_palette = ui.palettes.itemById('TextCommands')
         text_palette.writeText (msg)
 
+def parse_github_json (json):
+
+    substring = '"name"'
+    indices = []
+
+    # Set the starting index i to 0.
+    i = 0
+
+    while i < len (json):
+        j = json.find(substring, i)
+        if j == -1:
+            break
+        indices.append(j)
+        i = j + len (substring)
+
+    #text_palette.writeText (f'{indices}')
+
+    names = []
+    for i in indices:
+        name_start = json.find('"', i + 7)
+        name_end = json.find('"', i + 8)
+        #text_palette.writeText (f'{name_start} : {name_end}')
+        # check if .json and trim
+        json_suffix = json.find (".json", name_start, name_end)
+        if json_suffix != -1:
+            names.append (json [name_start+1: json_suffix])
+        
+            #text_palette.writeText (f'{json [name_start + 1:json_suffix]}')
+            #text_palette.writeText (f'{json [name_start + 1:name_end - 5]}')
+
+    return names
 
 def stop(context):
     try:
@@ -132,14 +191,15 @@ def stop(context):
             command_definitions.deleteMe()
         
         # get rid of this button
-        moose_tools_panel = ui.allToolbarPanels.itemById('Moose CAM')
-        control = moose_tools_panel.controls.itemById('pull_tool_library')
+        moose_cam_panel = ui.allToolbarPanels.itemById('MooseCAM')
+
+        control = moose_cam_panel.controls.itemById('pull_tool_library')
         if control:
             control.deleteMe()
 
         # and if it's the last button, get rid of the moose panel
-        if moose_tools_panel.controls.count == 0:
-                    moose_tools_panel.deleteMe()
+        if moose_cam_panel.controls.count == 0:
+                    moose_cam_panel.deleteMe()
         
         handlers = []
 
