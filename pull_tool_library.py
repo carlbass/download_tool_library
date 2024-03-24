@@ -26,7 +26,7 @@ def run(context):
         text_palette = ui.palettes.itemById('TextCommands')
 
         # Create a button command definition.
-        library_button = command_definitions.addButtonDefinition('pull_tool_library', 'Pull tool library', tooltip, '')
+        library_button = command_definitions.addButtonDefinition('pull_tool_library', 'Pull tool library', tooltip, './resources')
         
         # Connect to the command created event.
         library_command_created = command_created()
