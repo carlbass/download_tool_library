@@ -1,0 +1,13 @@
+{
+	"autodeskProduct":	"Fusion",
+	"type":	"addin",
+	"id":	"9fb80955-e053-436e-8c1c-0b063f9e210f",
+	"author":	"Carl Bass",
+	"description":	{
+		"":	"Download fusion tool libraries from git"
+	},
+	"version":	"1.0",
+	"runOnStartup":	false,
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
