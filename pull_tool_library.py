@@ -116,7 +116,7 @@ class command_executed (adsk.core.CommandEventHandler):
                     libraries_selected = input.listItems
                     for l in libraries_selected:
                         if l.isSelected:
-                            text_palette.writeText (f'<{l.name}>')
+                            debug_print (f'<{l.name}>')
                 elif (input.id == 'debug'):
                     debug = input.value           
                 else: 
@@ -138,7 +138,37 @@ class command_executed (adsk.core.CommandEventHandler):
                     download_url = base_url.replace (' ', '%20')
 
                     debug_print (f'Requesting: {download_url} {lib.isSelected}')
-                
+    
+                    request = adsk.core.HttpRequest.create(download_url, adsk.core.HttpMethods.GetMethod)
+
+                    if request.hasHeader:
+                        (status, hnames, hvalues) = request.headers()
+                        for h in hnames:
+                            debug_print (f'{h}')            
+                        for h in hvalues:
+                            debug_print (f'{h}')
+
+                    response = request.executeSync()
+
+                    if response.statusCode == 200:
+
+                        text_palette.writeText (f'About to create {tool_library_name}')
+                        local_libraries = tool_libraries.childAssetURLs(tool_library_url)
+
+                        for ll in local_libraries:
+                            basename = os.path.basename(ll.toString())
+
+                            debug_print (f'comparing {basename} => {lib.name}')
+
+                            # delete library if same one exists before making a new one
+                            if basename == lib.name:
+                                status = tool_libraries.deleteAsset(ll)
+                                debug_print (f'deleting {basename} => {status}')
+
+                        tool_library = adsk.cam.ToolLibrary.createFromJson(response.data)
+                        tool_libraries.importToolLibrary (tool_library, tool_library_url, tool_library_name)
+
+                        debug_print (f'created {tool_library_name} with {tool_library.count} tools')
 
         except:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))	
@@ -199,7 +229,7 @@ def stop(context):
 
         # and if it's the last button, get rid of the moose panel
         if moose_cam_panel.controls.count == 0:
-                    moose_cam_panel.deleteMe()
+            moose_cam_panel.deleteMe()
         
         handlers = []
 
