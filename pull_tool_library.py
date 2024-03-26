@@ -3,6 +3,7 @@
 
 import adsk.core, adsk.fusion, adsk.cam, traceback
 import os
+import json
 
 # Global list to keep all event handlers in scope.
 handlers = []
@@ -12,7 +13,7 @@ app = adsk.core.Application.get()
 ui  = app.userInterface
 
 # global variables because I can't find a better way to pass this info around -- would be nice if fusion api had some cleaner way to do this
-debug = True
+debug = False
 
 def run(context):
     
@@ -23,7 +24,6 @@ def run(context):
         
         tooltip = 'Pull tool library from git'
 
-        text_palette = ui.palettes.itemById('TextCommands')
 
         # Create a button command definition.
         library_button = command_definitions.addButtonDefinition('pull_tool_library', 'Pull tool library', tooltip, 'resources')
@@ -91,8 +91,8 @@ class command_created (adsk.core.CommandCreatedEventHandler):
             #text_palette.writeText (f'data: {response.data}')
             tool_library_names = parse_github_json (response.data)
 
-        for name in tool_library_names:
-            list.add (name, False, '')
+            for name in tool_library_names:
+                list.add (name, False, '')
         
         # create debug checkbox widget
         inputs.addBoolValueInput('debug', 'Debug', True, '', debug)
@@ -105,8 +105,6 @@ class command_executed (adsk.core.CommandEventHandler):
         global debug
 
         try:
-            design = app.activeProduct
-            text_palette = ui.palettes.itemById('TextCommands')
 
             # get current command
             command = args.firingEvent.sender
@@ -133,6 +131,7 @@ class command_executed (adsk.core.CommandEventHandler):
                 if lib.isSelected: 
                     base_url = "https://raw.githubusercontent.com/carlbass/fusion_tool_libraries/main/"
 
+
                     tool_library_name = lib.name + '.json'
                     base_url = base_url + tool_library_name
                     download_url = base_url.replace (' ', '%20')
@@ -141,34 +140,35 @@ class command_executed (adsk.core.CommandEventHandler):
     
                     request = adsk.core.HttpRequest.create(download_url, adsk.core.HttpMethods.GetMethod)
 
-                    if request.hasHeader:
-                        (status, hnames, hvalues) = request.headers()
-                        for h in hnames:
-                            debug_print (f'{h}')            
-                        for h in hvalues:
-                            debug_print (f'{h}')
+                    if debug:
+                        if request.hasHeader:
+                            (status, hnames, hvalues) = request.headers()
+                            for h in hnames:
+                                debug_print (f'{h}')            
+                            for h in hvalues:
+                                debug_print (f'{h}')
 
                     response = request.executeSync()
 
                     if response.statusCode == 200:
 
-                        text_palette.writeText (f'About to create {tool_library_name}')
+                        debug_print (f'About to create {tool_library_name}')
                         local_libraries = tool_libraries.childAssetURLs(tool_library_url)
 
                         for ll in local_libraries:
                             basename = os.path.basename(ll.toString())
 
-                            debug_print (f'comparing {basename} => {lib.name}')
+                            debug_print (f'Comparing {basename} => {lib.name}')
 
                             # delete library if same one exists before making a new one
                             if basename == lib.name:
                                 status = tool_libraries.deleteAsset(ll)
-                                debug_print (f'deleting {basename} => {status}')
+                                debug_print (f'Deleting {basename} => {status}')
 
                         tool_library = adsk.cam.ToolLibrary.createFromJson(response.data)
                         tool_libraries.importToolLibrary (tool_library, tool_library_url, tool_library_name)
 
-                        debug_print (f'created {tool_library_name} with {tool_library.count} tools')
+                        debug_print (f'Created {tool_library_name} with {tool_library.count} tools')
 
         except:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))	
@@ -179,35 +179,20 @@ def debug_print (msg):
         text_palette = ui.palettes.itemById('TextCommands')
         text_palette.writeText (msg)
 
-def parse_github_json (json):
+# take the json data and return all the library names by checking for file extension .json
 
-    substring = '"name"'
-    indices = []
+def parse_github_json (response_data):
 
-    # Set the starting index i to 0.
-    i = 0
-
-    while i < len (json):
-        j = json.find(substring, i)
-        if j == -1:
-            break
-        indices.append(j)
-        i = j + len (substring)
-
-    #text_palette.writeText (f'{indices}')
-
-    names = []
-    for i in indices:
-        name_start = json.find('"', i + 7)
-        name_end = json.find('"', i + 8)
-        #text_palette.writeText (f'{name_start} : {name_end}')
-        # check if .json and trim
-        json_suffix = json.find (".json", name_start, name_end)
-        if json_suffix != -1:
-            names.append (json [name_start+1: json_suffix])
-        
-            #text_palette.writeText (f'{json [name_start + 1:json_suffix]}')
-            #text_palette.writeText (f'{json [name_start + 1:name_end - 5]}')
+    jdata = json.loads(response_data)
+    
+    if jdata:
+        names = []
+        for jd in jdata:
+            name_parts = os.path.splitext(jd['name']) 
+            if name_parts[1] == '.json':
+                names.append(name_parts[0])
+    else:
+        debug_print ('json data is not valid')       
 
     return names
 
